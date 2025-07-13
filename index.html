@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Impact Career Pathway Navigator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: A pathway-centric, interactive dashboard. The user first selects a primary career goal (NGO, M&E, Climate). The UI then dynamically displays a recommended, multi-stage learning sequence for that path as an interactive visual flow. This is more user-friendly than a long, static report. It includes a cross-cutting skills visualizer (radar chart) and a filterable course catalog to support non-linear exploration. This structure prioritizes user choice and guided discovery, making the dense information from the report digestible and actionable. -->
+    <!-- Visualization & Content Choices: Pathways are interactive cards to guide user choice. The learning sequence is a custom HTML/CSS diagram for visual clarity over a table. In-demand skills are shown on a Chart.js Radar Chart to visualize the "T-shaped professional" concept and show relationships between skills. A simple filterable table serves as a comprehensive reference for all courses. This mix of custom diagrams, charts, and interactive tables makes the content engaging and easy to navigate. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8F7F4; }
+        .pathway-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .pathway-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); }
+        .pathway-card.active { border-color: #E17B60; box-shadow: 0 0 0 3px rgba(225, 123, 96, 0.4); }
+        .stage-line { content: ''; position: absolute; left: 2rem; top: 4.5rem; bottom: -2rem; width: 2px; background-color: #D1D5DB; }
+        .stage-item:last-child .stage-line { display: none; }
+        .course-item { transition: background-color 0.2s ease; }
+        .course-item:hover { background-color: #FFFBF9; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+        .chart-container { position: relative; width: 100%; max-width: 600px; margin-left: auto; margin-right: auto; height: 350px; max-height: 400px; }
+        @media (min-width: 768px) { .chart-container { height: 450px; max-height: 500px; } }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 class="text-2xl md:text-3xl font-bold text-slate-900 text-center">Impact Career Pathway Navigator</h1>
+            <p class="text-center text-slate-600 mt-1">An Interactive Guide to Free Certifications for Sociology Students</p>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+        <section id="pathway-selection" class="mb-12">
+            <h2 class="text-xl md:text-2xl font-bold text-center mb-2">1. Choose Your Career Pathway</h2>
+            <p class="text-center text-slate-600 max-w-3xl mx-auto mb-8">Select one of the three primary career paths below to see a tailored learning journey. This interactive guide is designed to help you strategically build skills for your desired role in the social impact sector.</p>
+            <div id="pathway-cards" class="grid md:grid-cols-3 gap-6"></div>
+        </section>
+
+        <section id="pathway-details" class="bg-white p-6 md:p-8 rounded-2xl shadow-lg min-h-[500px]">
+        </section>
+
+        <section id="skills-explorer" class="mt-16">
+            <h2 class="text-xl md:text-2xl font-bold text-center mb-2">Explore In-Demand Skills</h2>
+            <p class="text-center text-slate-600 max-w-3xl mx-auto mb-8">This chart visualizes the key cross-cutting competencies valued across the NGO, M&E, and Climate Action sectors. A balanced skill set, or "T-shaped" profile, combining deep expertise with broad capabilities, significantly enhances employability. Hover over a skill to see its importance rating based on the report's analysis.</p>
+            <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg">
+                <div class="chart-container">
+                    <canvas id="skillsChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="course-catalog" class="mt-16">
+            <h2 class="text-xl md:text-2xl font-bold text-center mb-2">Complete Course Catalog</h2>
+            <p class="text-center text-slate-600 max-w-3xl mx-auto mb-8">For those who prefer to forge their own path, here is a complete, filterable list of all certifications mentioned in the report. Use the filters to browse by provider or primary skill area.</p>
+            <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg">
+                <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                    <div class="flex-1">
+                        <label for="filter-provider" class="block text-sm font-medium text-slate-700 mb-1">Filter by Provider</label>
+                        <select id="filter-provider" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                            <option value="all">All Providers</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label for="filter-category" class="block text-sm font-medium text-slate-700 mb-1">Filter by Category</label>
+                        <select id="filter-category" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                            <option value="all">All Categories</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Course Title</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Provider</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Category</th>
+                            </tr>
+                        </thead>
+                        <tbody id="catalog-table-body" class="bg-white divide-y divide-slate-200">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-slate-800 text-white mt-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <h2 class="text-xl font-bold text-center mb-6">Strategic Advice for Career Success</h2>
+            <div id="advice-accordion" class="max-w-3xl mx-auto space-y-4"></div>
+             <p class="text-center text-slate-400 text-sm mt-8">Application designed based on the "Free Certifications for Sociology Students" report. All content is derived from the source document.</p>
+        </div>
+    </footer>
+
+    <div id="course-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" id="modal-content">
+        </div>
+    </div>
+
+
+<script>
+const DB = {
+    pathways: {
+        ngo: {
+            id: 'ngo',
+            title: 'NGO Program & Strategy Leader',
+            icon: '👥',
+            description: 'This pathway equips you with the strategic, operational, and leadership skills necessary to design, manage, and advocate for impactful programs within non-governmental organizations. It emphasizes organizational effectiveness, resource generation, and stakeholder engagement.',
+            stages: [
+                {
+                    title: 'Stage 1: Foundations of NGO Strategy & Operations',
+                    courses: ['essentials_of_nonprofit_strategy', 'governance_and_health_101']
+                },
+                {
+                    title: 'Stage 2: Resource Mobilization & Digital Outreach',
+                    courses: ['introduction_to_fundraising', 'fundraising_connecting_with_donors', 'digital_advertising_for_nonprofits']
+                },
+                {
+                    title: 'Stage 3: Advocacy, Communications & Stakeholder Engagement',
+                    courses: ['advocacy', 'stakeholder_engagement_strategy']
+                },
+                {
+                    title: 'Stage 4: Organizational Capacity & Knowledge Management',
+                    courses: ['unlocking_your_organizations_potential', 'knowledge_management_km_in_global_health_programs']
+                },
+                {
+                    title: 'Stage 5: Project Management & Cross-cutting Skills',
+                    courses: ['becoming_a_climate_champion_ngo']
+                }
+            ]
+        },
+        me: {
+            id: 'me',
+            title: 'Comprehensive M&E Specialist',
+            icon: '📊',
+            description: 'This pathway builds robust Monitoring & Evaluation skills, from foundational concepts to advanced data analysis. It leverages a sociology student\'s inherent strengths in qualitative research while systematically adding technical data skills to enable effective program evaluation.',
+            stages: [
+                 {
+                    title: 'Stage 1: M&E Fundamentals & Frameworks',
+                    courses: ['introduction_to_monitoring_and_evaluation', 'monitoring_and_evaluation_practices']
+                },
+                {
+                    title: 'Stage 2: Data Analysis Techniques (Qualitative & Quantitative Foundations)',
+                    courses: ['qualitative_data_analysis', 'demographic_and_health_surveys_data_use']
+                },
+                {
+                    title: 'Stage 3: Specialized M&E Applications & Advanced Tools',
+                    courses: ['gender_me', 'gis_techniques_for_me', 'basic_and_advanced_impact_analysis']
+                },
+                {
+                    title: 'Stage 4: Integrated M&E for Program Management',
+                    courses: ['me_of_holistic_ecd_programs']
+                }
+            ]
+        },
+        climate: {
+            id: 'climate',
+            title: 'Climate Action & Sustainable Development Practitioner',
+            icon: '🌍',
+            description: 'This pathway provides a comprehensive understanding of climate change, sustainable development principles, and practical approaches to adaptation and integrated planning, with a special focus on the social dimensions of environmental challenges.',
+            stages: [
+                {
+                    title: 'Stage 1: Foundations of Climate Change & Sustainable Development',
+                    courses: ['climate_change_from_learning_to_action', 'introduction_to_sustainable_development_in_practice']
+                },
+                {
+                    title: 'Stage 2: Adaptation, Resilience & Integrated Planning',
+                    courses: ['building_climate_resilience', 'advancing_sustainable_development_in_practice']
+                },
+                {
+                    title: 'Stage 3: Cross-cutting Issues & Social Dimensions',
+                    courses: ['children_and_climate_change', 'human_health_and_climate_change', 'between_two_baobab_trees']
+                },
+                {
+                    title: 'Stage 4: Practical Application & Leadership for Climate Action',
+                    courses: ['becoming_a_climate_champion_climate']
+                }
+            ]
+        }
+    },
+    courses: {
+        essentials_of_nonprofit_strategy: { title: "Essentials of Nonprofit Strategy", provider: "PhilanthropyU", category: "NGO", skills: "Problem Definition, Theory of Change, Program Evaluation", time: "Self-paced", certificate: true },
+        unlocking_your_organizations_potential: { title: "Unlocking Your Organization's Potential: Capacity Building 101", provider: "PhilanthropyU", category: "NGO", skills: "Organizational Assessment, Solution Development, Implementation", time: "Self-paced", certificate: true },
+        governance_and_health_101: { title: "Governance and Health 101", provider: "Global Health Learning", category: "NGO", skills: "Governance Concepts, Leadership vs. Management", time: "2.5 hours", certificate: true },
+        introduction_to_fundraising: { title: "Introduction to Fundraising", provider: "PhilanthropyU", category: "NGO", skills: "Donor Identification, Donor Motivations, Networking", time: "1-2h/week", certificate: true },
+        fundraising_connecting_with_donors: { title: "Fundraising: Connecting with Donors", provider: "PhilanthropyU", category: "NGO", skills: "Donor Communication, Making the 'Ask'", time: "Self-paced", certificate: true },
+        digital_advertising_for_nonprofits: { title: "Digital Advertising for Nonprofits", provider: "PhilanthropyU", category: "NGO", skills: "Google AdWords, Facebook Ads, Campaign Management", time: "Self-paced", certificate: true },
+        advocacy: { title: "Advocacy", provider: "PhilanthropyU", category: "NGO", skills: "Advocacy Strategies, Tactics, Partnership Building, Evaluation", time: "Self-paced", certificate: true },
+        stakeholder_engagement_strategy: { title: "Stakeholder Engagement Strategy", provider: "PhilanthropyU", category: "NGO", skills: "Stakeholder Mapping, Engagement Planning, Evaluation", time: "Self-paced", certificate: true },
+        knowledge_management_km_in_global_health_programs: { title: "Knowledge Management (KM) in Global Health Programs", provider: "Global Health Learning", category: "NGO", skills: "KM Processes, Interventions, Indicators", time: "2 hours", certificate: true },
+        becoming_a_climate_champion_ngo: { title: "Becoming a Climate Champion", provider: "UN CC:Learn", category: "NGO", skills: "Leadership, Project Management, Resource Mobilization, Communications", time: "3.5 hours", certificate: true },
+        introduction_to_monitoring_and_evaluation: { title: "Introduction to Monitoring and Evaluation", provider: "DisasterReady", category: "M&E", skills: "Logic Model, M&E Terminology, Evaluation Types", time: "Self-paced", certificate: true },
+        monitoring_and_evaluation_practices: { title: "Monitoring and Evaluation Practices", provider: "DisasterReady", category: "M&E", skills: "Logframes, Theory of Change, Data Collection & Analysis", time: "2 hours", certificate: true },
+        qualitative_data_analysis: { title: "Qualitative Data Analysis", provider: "DisasterReady", category: "M&E", skills: "Data Collection, Coding, Interpretation, Reporting", time: "Self-paced", certificate: true },
+        demographic_and_health_surveys_data_use: { title: "Demographic and Health Surveys: Data Use", provider: "Global Health Learning", category: "M&E", skills: "DHS Data Interpretation, Evidence-based Decisions", time: "2 hours", certificate: true },
+        gender_me: { title: "Gender M&E", provider: "Global Health Learning", category: "M&E", skills: "Gender-sensitive Indicators, Integrating Gender into M&E", time: "2 hours", certificate: true },
+        gis_techniques_for_me: { title: "GIS Techniques for M&E", provider: "Global Health Learning", category: "M&E", skills: "GIS Fundamentals, QGIS, Spatial Analysis", time: "2h (+3h exercises)", certificate: true },
+        basic_and_advanced_impact_analysis: { title: "Basic and Advanced Impact Analysis", provider: "Global Health Learning", category: "M&E", skills: "Multivariate Regression, Propensity Score Matching, Causal Models", time: "Self-paced (Advanced)", certificate: true },
+        me_of_holistic_ecd_programs: { title: "M&E of Holistic ECD Programs", provider: "Global Health Learning", category: "M&E", skills: "ECD M&E Framework, Child/Caregiver Well-being Indicators", time: "2.75 hours", certificate: true },
+        climate_change_from_learning_to_action: { title: "Climate Change: From Learning to Action", provider: "UN CC:Learn", category: "Climate", skills: "Adaptation, Mitigation, Planning, Finance, Negotiations", time: "12 hours", certificate: true },
+        introduction_to_sustainable_development_in_practice: { title: "Introduction to Sustainable Development in Practice", provider: "UN CC:Learn", category: "Climate", skills: "Poverty-Environment Nexus, Integrated Approach", time: "2 hours", certificate: true },
+        building_climate_resilience: { title: "Building Climate Resilience through Ecosystem-based Adaptation Planning", provider: "UN CC:Learn", category: "Climate", skills: "Ecosystem-based Adaptation (EbA), National Adaptation Plans (NAPs)", time: "3 hours", certificate: true },
+        advancing_sustainable_development_in_practice: { title: "Advancing Sustainable Development in Practice", provider: "UN CC:Learn", category: "Climate", skills: "Integrated Analysis, Planning, Financing, M&E", time: "Self-paced", certificate: true },
+        children_and_climate_change: { title: "Children and Climate Change", provider: "UN CC:Learn", category: "Climate", skills: "Child-centric Impacts, Resilience Strategies, Youth Participation", time: "2 hours", certificate: true },
+        human_health_and_climate_change: { title: "Human Health and Climate Change", provider: "UN CC:Learn", category: "Climate", skills: "Climate-Health Nexus, Health Challenges & Opportunities", time: "2 hours", certificate: true },
+        between_two_baobab_trees: { title: "Between Two Baobab Trees", provider: "Global Health Learning", category: "Climate", skills: "Climate-Health Intersection, Gender Equality, WASH", time: "Podcast Series", certificate: false },
+        becoming_a_climate_champion_climate: { title: "Becoming a Climate Champion", provider: "UN CC:Learn", category: "Climate", skills: "Leadership, Project Management, Resource Mobilization, Communications", time: "3.5 hours", certificate: true },
+    },
+    skills: {
+        labels: ["M&E Fundamentals", "Data Analysis", "Strategic Planning", "Fundraising", "Communication", "Project Management", "Gender Integration", "Stakeholder Engagement"],
+        data: [8, 9, 8, 7, 9, 8, 9, 8],
+    },
+    advice: [
+        { title: "Leverage Certifications", content: "While free online certifications provide foundational knowledge and specialized skills, they should be viewed as one component of a comprehensive career development strategy. They are most powerful when they complement practical experience." },
+        { title: "Gain Practical Experience", content: "To solidify learning and provide tangible examples for resumes and interviews, certifications must be complemented by practical experience. This can be gained through internships, volunteer work, or applied research projects that allow you to apply your newly acquired skills in real-world settings." },
+        { title: "Build Your Network", content: "Actively engaging with professionals in your target sectors is crucial. This can involve participating in online forums, attending virtual or in-person industry events, and conducting informational interviews. Networking can open doors to opportunities and provide valuable insights." },
+        { title: "Embrace Continuous Learning", content: "The social impact sector is dynamic, constantly evolving with new challenges, technologies, and best practices. Cultivating a mindset of continuous learning is essential for long-term career success. Stay updated on emerging trends and innovative approaches." },
+        { title: "Tailor Your Narrative", content: "Articulate how your sociology background uniquely positions you to address complex social problems. Highlight how your sociological lens enhances your ability to understand beneficiaries' needs, analyze power dynamics, and contribute to equitable and sustainable solutions." },
+    ]
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    let state = {
+        currentPathway: 'ngo'
+    };
+
+    const pathwayCardsContainer = document.getElementById('pathway-cards');
+    const pathwayDetailsContainer = document.getElementById('pathway-details');
+    const modal = document.getElementById('course-modal');
+    const modalContent = document.getElementById('modal-content');
+    const skillsChartCanvas = document.getElementById('skillsChart').getContext('2d');
+    const catalogBody = document.getElementById('catalog-table-body');
+    const providerFilter = document.getElementById('filter-provider');
+    const categoryFilter = document.getElementById('filter-category');
+    const adviceContainer = document.getElementById('advice-accordion');
+
+    function renderPathwayCards() {
+        pathwayCardsContainer.innerHTML = '';
+        Object.values(DB.pathways).forEach(pathway => {
+            const card = document.createElement('div');
+            card.className = `pathway-card bg-white p-6 rounded-xl border-2 cursor-pointer ${pathway.id === state.currentPathway ? 'active border-orange-500' : 'border-transparent'}`;
+            card.dataset.pathwayId = pathway.id;
+            card.innerHTML = `
+                <div class="text-4xl mb-4">${pathway.icon}</div>
+                <h3 class="text-lg font-bold text-slate-800">${pathway.title}</h3>
+            `;
+            card.addEventListener('click', () => {
+                state.currentPathway = pathway.id;
+                render();
+            });
+            pathwayCardsContainer.appendChild(card);
+        });
+    }
+
+    function renderPathwayDetails() {
+        const pathway = DB.pathways[state.currentPathway];
+        pathwayDetailsContainer.innerHTML = `
+            <div class="flex items-center mb-6">
+                <div class="text-5xl mr-5">${pathway.icon}</div>
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-900">${pathway.title}</h2>
+                    <p class="text-slate-600 mt-1">${pathway.description}</p>
+                </div>
+            </div>
+            <div class="space-y-8">
+                ${pathway.stages.map((stage, index) => `
+                    <div class="stage-item relative pl-16">
+                        <div class="absolute left-0 flex items-center">
+                            <div class="bg-orange-500 text-white w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold ring-8 ring-white">
+                                ${index + 1}
+                            </div>
+                        </div>
+                        <div class="stage-line"></div>
+                        <div class="pt-3">
+                            <h4 class="text-lg font-semibold text-slate-800">${stage.title}</h4>
+                            <div class="mt-4 space-y-3">
+                                ${stage.courses.map(courseId => {
+                                    const course = DB.courses[courseId];
+                                    return `
+                                        <div class="course-item p-4 border border-slate-200 rounded-lg cursor-pointer flex justify-between items-center" data-course-id="${courseId}">
+                                            <div>
+                                                <p class="font-medium text-slate-900">${course.title}</p>
+                                                <p class="text-sm text-slate-500">${course.provider}</p>
+                                            </div>
+                                            <span class="text-orange-500 font-bold text-xl">&#8250;</span>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        pathwayDetailsContainer.querySelectorAll('.course-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const courseId = e.currentTarget.dataset.courseId;
+                showModal(courseId);
+            });
+        });
+    }
+    
+    function showModal(courseId) {
+        const course = DB.courses[courseId];
+        modalContent.innerHTML = `
+            <div class="p-6 md:p-8">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-xl font-bold text-slate-900">${course.title}</h3>
+                    <button id="close-modal" class="text-slate-500 hover:text-slate-800 text-2xl">&times;</button>
+                </div>
+                <p class="text-sm text-slate-500 mb-6">${course.provider}</p>
+                
+                <div class="grid md:grid-cols-3 gap-6 text-center">
+                    <div class="bg-slate-50 p-4 rounded-lg">
+                        <h4 class="text-sm font-semibold text-slate-500 uppercase">Category</h4>
+                        <p class="text-lg font-bold text-orange-600 mt-1">${course.category}</p>
+                    </div>
+                     <div class="bg-slate-50 p-4 rounded-lg">
+                        <h4 class="text-sm font-semibold text-slate-500 uppercase">Time</h4>
+                        <p class="text-lg font-bold text-slate-800 mt-1">${course.time}</p>
+                    </div>
+                     <div class="bg-slate-50 p-4 rounded-lg">
+                        <h4 class="text-sm font-semibold text-slate-500 uppercase">Certificate</h4>
+                        <p class="text-lg font-bold mt-1 ${course.certificate ? 'text-green-600' : 'text-red-600'}">${course.certificate ? 'Yes' : 'No'}</p>
+                    </div>
+                </div>
+
+                <div class="mt-8">
+                    <h4 class="font-semibold text-slate-800 mb-2">Key Skills Acquired</h4>
+                    <p class="text-slate-600">${course.skills}</p>
+                </div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+        document.getElementById('close-modal').addEventListener('click', () => modal.classList.add('hidden'));
+    }
+    
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+        }
+    });
+
+    function renderSkillsChart() {
+        new Chart(skillsChartCanvas, {
+            type: 'radar',
+            data: {
+                labels: DB.skills.labels,
+                datasets: [{
+                    label: 'Skill Importance',
+                    data: DB.skills.data,
+                    fill: true,
+                    backgroundColor: 'rgba(225, 123, 96, 0.2)',
+                    borderColor: 'rgb(225, 123, 96)',
+                    pointBackgroundColor: 'rgb(225, 123, 96)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(225, 123, 96)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(0, 0, 0, 0.1)' },
+                        grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                        pointLabels: { font: { size: 12 } },
+                        suggestedMin: 0,
+                        suggestedMax: 10,
+                        ticks: {
+                           backdropColor: 'rgba(0,0,0,0)',
+                           stepSize: 2
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+
+    function renderCatalog() {
+        const providers = [...new Set(Object.values(DB.courses).map(c => c.provider))];
+        const categories = [...new Set(Object.values(DB.courses).map(c => c.category))];
+        
+        providerFilter.innerHTML = '<option value="all">All Providers</option>' + providers.map(p => `<option value="${p}">${p}</option>`).join('');
+        categoryFilter.innerHTML = '<option value="all">All Categories</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+        providerFilter.addEventListener('change', updateCatalogView);
+        categoryFilter.addEventListener('change', updateCatalogView);
+        
+        updateCatalogView();
+    }
+
+    function updateCatalogView() {
+        const selectedProvider = providerFilter.value;
+        const selectedCategory = categoryFilter.value;
+
+        const filteredCourses = Object.entries(DB.courses).filter(([id, course]) => {
+            const providerMatch = selectedProvider === 'all' || course.provider === selectedProvider;
+            const categoryMatch = selectedCategory === 'all' || course.category === selectedCategory;
+            return providerMatch && categoryMatch;
+        });
+
+        catalogBody.innerHTML = filteredCourses.map(([id, course]) => `
+            <tr class="course-item cursor-pointer" data-course-id="${id}">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="font-medium text-slate-900">${course.title}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${course.provider}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${course.category}</td>
+            </tr>
+        `).join('');
+
+        catalogBody.querySelectorAll('.course-item').forEach(item => {
+            item.addEventListener('click', (e) => showModal(e.currentTarget.dataset.courseId));
+        });
+    }
+
+    function renderAdvice() {
+        adviceContainer.innerHTML = DB.advice.map((item, index) => `
+            <div class="bg-slate-700 rounded-lg">
+                <button class="w-full flex justify-between items-center text-left p-4 focus:outline-none" data-accordion-target="${index}">
+                    <span class="font-semibold text-white">${item.title}</span>
+                    <span class="text-xl text-slate-400 transform transition-transform duration-200">+</span>
+                </button>
+                <div id="accordion-content-${index}" class="hidden px-4 pb-4 text-slate-300">
+                    <p>${item.content}</p>
+                </div>
+            </div>
+        `).join('');
+
+        adviceContainer.querySelectorAll('button[data-accordion-target]').forEach(button => {
+            button.addEventListener('click', () => {
+                const targetId = button.dataset.accordionTarget;
+                const content = document.getElementById(`accordion-content-${targetId}`);
+                const icon = button.querySelector('span:last-child');
+                const isHidden = content.classList.contains('hidden');
+
+                if (isHidden) {
+                    content.classList.remove('hidden');
+                    icon.textContent = '-';
+                } else {
+                    content.classList.add('hidden');
+                    icon.textContent = '+';
+                }
+            });
+        });
+    }
+
+    function render() {
+        renderPathwayCards();
+        renderPathwayDetails();
+    }
+
+    render();
+    renderSkillsChart();
+    renderCatalog();
+    renderAdvice();
+});
+</script>
+
+</body>
+</html>
